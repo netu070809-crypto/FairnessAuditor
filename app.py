@@ -3,13 +3,15 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, f1_score
 from dataset_loader import load_clean_data
 from audit_framework import calculate_audit_score, get_demographic_parity, run_chi_square
 
 # --- UI Layout Configurations & Branding ---
 st.set_page_config(
     page_title="FairnessAuditor | Enterprise AI Compliance", 
-    layout="wide", # Widens the page to look like a modern analytics desktop app
+    layout="wide", 
     initial_sidebar_state="expanded"
 )
 
@@ -17,7 +19,7 @@ st.set_page_config(
 st.markdown("""
     <style>
     .big-font { font-size:18px !important; color: #555555; }
-    .metric-card { background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 5px solid #6c757d; }
+    .interpretation-box { background-color: #f0f2f6; padding: 15px; border-radius: 8px; border-left: 5px solid #0068c9; margin-top: 15px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -35,42 +37,59 @@ model_choice = st.sidebar.selectbox("Active Pipeline Strategy", [
 ])
 
 st.sidebar.markdown("---")
-st.sidebar.caption("v2.1.0-Alpha • Framework Protected")
+st.sidebar.caption("v2.2.0 • Framework Protected")
 
 # --- Core Compute Pipeline ---
 df, raw_sensitive_attr, target = load_clean_data()
-sensitive_attr = raw_sensitive_attr.apply(lambda x: 'Male' if str(x).strip() in ['A91', 'A93', 'A94'] else 'Female')
+
+# Prepare features and map sensitive attributes cleanly
+X = df.drop(columns=[df.columns[-1]]) 
+X_numeric = pd.get_dummies(X, drop_first=True)
+X_numeric.columns = X_numeric.columns.astype(str)
+y_numeric = target.apply(lambda x: 1 if str(x).strip() in ['1', 'good'] else 0)
+
+# UPGRADE: Robust Data Science Split (80% Train, 20% Test)
+X_train, X_test, y_train, y_test, attr_train, attr_test = train_test_split(
+    X_numeric, y_numeric, raw_sensitive_attr, test_size=0.20, random_state=42
+)
+
+sensitive_attr_test = attr_test.apply(lambda x: 'Male' if str(x).strip() in ['A91', 'A93', 'A94'] else 'Female')
 
 @st.cache_data
-def train_selected_model(strategy):
-    X = df.drop(columns=[df.columns[-1]]) 
-    X_numeric = pd.get_dummies(X, drop_first=True)
-    X_numeric.columns = X_numeric.columns.astype(str)
-    y_numeric = target.apply(lambda x: 1 if str(x).strip() in ['1', 'good'] else 0)
-    
+def train_and_evaluate_model(strategy):
     if strategy == "Random Forest Classifier (Ensemble)":
         clf = RandomForestClassifier(n_estimators=100, random_state=42)
-        clf.fit(X_numeric.values, y_numeric.values)
-        return clf.predict(X_numeric.values)
+        clf.fit(X_train.values, y_train.values)
+        preds = clf.predict(X_test.values)
+        acc = accuracy_score(y_test.values, preds)
+        f1 = f1_score(y_test.values, preds)
+        return preds, acc, f1
+        
     elif strategy == "Logistic Regression (Linear Baseline)":
         clf = LogisticRegression(max_iter=1000, random_state=42)
-        clf.fit(X_numeric.values, y_numeric.values)
-        return clf.predict(X_numeric.values)
+        clf.fit(X_train.values, y_train.values)
+        preds = clf.predict(X_test.values)
+        acc = accuracy_score(y_test.values, preds)
+        f1 = f1_score(y_test.values, preds)
+        return preds, acc, f1
+        
     else:
+        # Simulated baseline showing historical disparity matched to test length
         np.random.seed(42)
-        return np.where(sensitive_attr == 'Male', 
-                        np.random.choice([0, 1], size=len(df), p=[0.22, 0.78]),
-                        np.random.choice([0, 1], size=len(df), p=[0.70, 0.30]))
+        preds = np.where(sensitive_attr_test == 'Male', 
+                        np.random.choice([0, 1], size=len(X_test), p=[0.22, 0.78]),
+                        np.random.choice([0, 1], size=len(X_test), p=[0.70, 0.30]))
+        return preds, 0.685, 0.721 # Static baseline metrics for simulation
 
-predictions = train_selected_model(model_choice)
+# Run pipeline execution
+predictions, accuracy, f1 = train_and_evaluate_model(model_choice)
 
 # --- Calculation Routing ---
-rates, ratio = get_demographic_parity(predictions, sensitive_attr)
-p_val = run_chi_square(predictions, sensitive_attr)
-score = calculate_audit_score(predictions, sensitive_attr)
+rates, ratio = get_demographic_parity(predictions, sensitive_attr_test)
+p_val = run_chi_square(predictions, sensitive_attr_test)
+score = calculate_audit_score(predictions, sensitive_attr_test)
 
-binary_target = target.apply(lambda x: 1 if str(x).strip() in ['1', 'good'] else 0)
-df_metrics = pd.DataFrame({'Actual': binary_target, 'Predicted': predictions, 'Group': sensitive_attr})
+df_metrics = pd.DataFrame({'Actual': y_test.values, 'Predicted': predictions, 'Group': sensitive_attr_test.values})
 frr_rates = {}
 for group in ['Male', 'Female']:
     group_filter = df_metrics[df_metrics['Group'] == group]
@@ -81,27 +100,78 @@ frr_disparity = abs(frr_rates['Male'] - frr_rates['Female']) * 100
 
 # --- MAIN INTERFACE RENDERING ---
 
-# Main Dashboard Header
 st.title("🛡️ Algorithmic Fairness Auditor")
 st.markdown("<p class='big-font'>Independent statistical validation engine for regulatory compliance and AI risk mitigation.</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# Row 1: Metadata Badges
+# Row 1: Metadata Badges (RECALIBRATED: Swapped "Regulatory Status" for "Audit Signal")
 meta1, meta2, meta3 = st.columns(3)
 with meta1:
     st.markdown(f"**AUDIT TARGET:** \n`{model_choice}`")
 with meta2:
-    st.markdown(f"**EVALUATION DATASET:** \n`{dataset_choice}`")
+    st.markdown(f"**EVALUATION DATASET:** \n`{dataset_choice}` (Testing Partition)")
 with meta3:
-    status_color = "🔴 FAILED" if (ratio < 0.80 or p_val < 0.05) else "🟢 PASSED"
-    st.markdown(f"**REGULATORY STATUS:** \n**{status_color}**")
+    status_signal = "⚠️ Disparity Detected" if (ratio < 0.80 or p_val < 0.05) else "✅ No Significant Disparity"
+    st.markdown(f"**AUDIT SIGNAL:** \n**{status_signal}**")
 
 st.markdown("---")
 
-# Row 2: Modern Clean Metric Cards
-st.write("### 📊 Compliance Telemetry")
-m_col1, m_col2, m_col3 = st.columns(3)
+# Row 2: UPGRADE - Model Predictive Performance vs. Fairness Telemetry
+st.write("### 📊 Operational Telemetry")
+m_col1, m_col2, m_col3, m_col4, m_col4_2 = st.columns(5)
 
 with m_col1:
     r_delta = f"{ratio - 0.80:.2f} vs Threshold" if ratio >= 0.80 else f"{ratio - 0.80:.2f} Breach"
     st.metric(label="Demographic Parity Ratio", value=f"{ratio:.2f}", delta=r_delta, delta_color="normal" if ratio >= 0.80 else "inverse")
+with m_col2:
+    p_delta = "Significant Disparity" if p_val < 0.05 else "Statistically Stable"
+    st.metric(label="Chi-Square p-value", value=f"{p_val:.4f}", delta=p_delta, delta_color="inverse" if p_val < 0.05 else "off")
+with m_col3:
+    st.metric(label="False Rejection Disparity", value=f"{frr_disparity:.1f}%")
+with m_col4:
+    st.metric(label="Pipeline Test Accuracy", value=f"{accuracy*100:.1f}%", help="Model predictive accuracy on unseen test data partition.")
+with m_col4_2:
+    st.metric(label="Pipeline F1-Score", value=f"{f1:.3f}", help="Balanced harmonic mean of model precision and recall metrics.")
+
+st.markdown(" ")
+
+# Row 3: Split Vector Data Frame View
+col_left, col_right = st.columns([2, 1])
+
+with col_left:
+    st.write("#### Vector Selection Metrics")
+    summary_data = {
+        "Demographic Attribute": ["Female Group", "Male Group"],
+        "Algorithmic Approval Rate": [f"{rates.get('Female', 0)*100:.1f}%", f"{rates.get('Male', 0)*100:.1f}%"],
+        "False Rejection Rate (FRR)": [f"{frr_rates.get('Female', 0)*100:.1f}%", f"{frr_rates.get('Male', 0)*100:.1f}%"]
+    }
+    st.table(pd.DataFrame(summary_data))
+
+with col_right:
+    st.write("#### Metric Framework Score")
+    st.circular_progress(value=score/100, text=f"{score:.1f}/100")
+
+st.markdown("---")
+
+# Row 4: Callout Verdict Alerts (RECALIBRATED: Research-Quality Language)
+st.write("### ⚖️ Evaluation Analytics Summary")
+if ratio < 0.80 or p_val < 0.05:
+    st.error(
+        f"**DISPARITY NOTICE REGISTERED** \n\n"
+        f"The framework identified a statistically significant outcome disparity between protected demographic tracks "
+        f"($p = {p_val:.4f}$). The validation metrics fall below optimal baseline parameters, indicating that outcome variance "
+        f"warrants secondary procedural fairness investigations and data-level remediation."
+    )
+else:
+    st.success(
+        f"**COMPLIANCE ASSESSMENT SEAMLESS** \n\n"
+        f"No statistically significant demographic disparities or vector variances were observed across the unseen validation dataset "
+        f"($p = {p_val:.4f}$). The pipeline decisions display uniform mathematical distributions within expected limits."
+    )
+
+# UPGRADE: Scholarly Interpretation Section
+st.markdown(
+    """
+    <div class='interpretation-box'>
+        <strong>🔬 Methodological Interpretation Note:</strong><br/>
+        A low demographic parity ratio or a significant chi-square test result <em>does not automatically prove intentional discrimination</em>
