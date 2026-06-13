@@ -19,7 +19,7 @@ st.markdown("""
     .big-font { font-size:18px !important; color: #555555; }
     .metric-card { background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 5px solid #6c757d; }
     </style>
-""", unsafe_base64=True)
+""", unsafe_allow_html=True)
 
 # --- Sidebar Controls ---
 st.sidebar.image("https://img.icons8.com/fluency/96/shield-with-blockchain.png", width=60)
@@ -103,80 +103,5 @@ st.write("### 📊 Compliance Telemetry")
 m_col1, m_col2, m_col3 = st.columns(3)
 
 with m_col1:
-    # Color metrics conditionally based on regulatory threshold passes
     r_delta = f"{ratio - 0.80:.2f} vs Threshold" if ratio >= 0.80 else f"{ratio - 0.80:.2f} Breach"
     st.metric(label="Demographic Parity Ratio", value=f"{ratio:.2f}", delta=r_delta, delta_color="normal" if ratio >= 0.80 else "inverse")
-with m_col2:
-    p_delta = "Statistically Significant" if p_val < 0.05 else "Statistically Stable"
-    st.metric(label="Chi-Square p-value", value=f"{p_val:.4f}", delta=p_delta, delta_color="inverse" if p_val < 0.05 else "off")
-with m_col3:
-    st.metric(label="False Rejection Disparity", value=f"{frr_disparity:.1f}%", delta="Absolute Disparity Gap", delta_color="off")
-
-st.markdown(" ")
-
-# Row 3: Split Vector Data Frame View
-col_left, col_right = st.columns([2, 1])
-
-with col_left:
-    st.write("#### Vector Selection Metrics")
-    # Present data cleanly inside a beautifully styled table instead of a plain text list
-    summary_data = {
-        "Demographic Attribute": ["Female Group", "Male Group"],
-        "Algorithmic Approval Rate": [f"{rates.get('Female', 0)*100:.1f}%", f"{rates.get('Male', 0)*100:.1f}%"],
-        "False Rejection Rate (FRR)": [f"{frr_rates.get('Female', 0)*100:.1f}%", f"{frr_rates.get('Male', 0)*100:.1f}%"]
-    }
-    st.table(pd.DataFrame(summary_data))
-
-with col_right:
-    st.write("#### Audit Score")
-    st.circular_progress(value=score/100, text=f"{score:.1f}/100")
-
-st.markdown("---")
-
-# Row 4: Callout Verdict Alerts
-st.write("### ⚖️ Regulatory Evaluation Verdict")
-if ratio < 0.80 or p_val < 0.05:
-    st.error(
-        f"**COMPLIANCE INFRACTION DETECTED** \n\n"
-        f"The framework identified a statistically significant outcome disparity between protected demographic tracks "
-        f"($p = {p_val:.4f}$). The target system fails automated validation baselines and requires "
-        f"structural algorithm mitigation before live production deployment."
-    )
-else:
-    st.success(
-        f"**COMPLIANCE VALIDATION SUCCESS** \n\n"
-        f"No statistically significant demographic disparities or vector variances were detected across the decision arrays "
-        f"($p = {p_val:.4f}$). The pipeline outputs conform to the legal boundaries defined by the 4/5ths statutory rule."
-    )
-
-st.markdown("---")
-
-# Row 5: Action Button / Export Section
-st.write("### 📥 Compliance Logging")
-report_content = f"""ALGORITHMIC COMPLIANCE AUDIT REPORT
-==========================================
-Target Model: {model_choice}
-Evaluation Dataset: {dataset_choice}
-------------------------------------------
-FINDINGS:
-- Demographic Parity Ratio: {ratio:.2f}
-- Pearson Chi-Square p-value: {p_val:.4f}
-- False Rejection Rate Disparity: {frr_disparity:.1f}%
-
-METRIC SUMMARY BREAKDOWN:
-- Female Approval Rate: {rates.get('Female', 0)*100:.1f}%
-- Male Approval Rate: {rates.get('Male', 0)*100:.1f}%
-
-VERDICT SUMMARY:
-{'FAIL: Statistically significant outcomes observed.' if (ratio < 0.80 or p_val < 0.05) else 'PASS: Disparities remain within null-hypothesis limits.'}
-==========================================
-Report compiled via open-source Framework Auditor.
-"""
-
-st.download_button(
-    label="Download Formal Audit Ledger",
-    data=report_content,
-    file_name=f"audit_ledger_{model_choice.lower().replace(' ', '_')}.txt",
-    mime="text/plain",
-    use_container_width=True # Extends the button fully to look like a premium portal feature
-)
