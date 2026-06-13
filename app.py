@@ -4,9 +4,9 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from dataset_loader import load_clean_data
-from audit_framework import calculate_audit_score, get_demographic_parity, run_chi_square
+from audit_framework import get_demographic_parity, run_chi_square
 
 # --- UI Layout Configurations & Branding ---
 st.set_page_config(
@@ -37,7 +37,7 @@ model_choice = st.sidebar.selectbox("Active Pipeline Strategy", [
 ])
 
 st.sidebar.markdown("---")
-st.sidebar.caption("v2.2.0 • Framework Protected")
+st.sidebar.caption("v2.3.0 • Framework Protected")
 
 # --- Core Compute Pipeline ---
 df, raw_sensitive_attr, target = load_clean_data()
@@ -61,33 +61,59 @@ def train_and_evaluate_model(strategy):
         clf = RandomForestClassifier(n_estimators=100, random_state=42)
         clf.fit(X_train.values, y_train.values)
         preds = clf.predict(X_test.values)
+        probs = clf.predict_proba(X_test.values)[:, 1]
+        
         acc = accuracy_score(y_test.values, preds)
         f1 = f1_score(y_test.values, preds)
-        return preds, acc, f1
+        auc = roc_auc_score(y_test.values, probs)
+        
+        # Extract feature importances safely
+        importances = clf.feature_importances_
+        feat_imp_df = pd.DataFrame({
+            'Feature': X_train.columns,
+            'Importance': importances
+        }).sort_values(by='Importance', ascending=False).head(5)
+        
+        return preds, acc, f1, auc, feat_imp_df
         
     elif strategy == "Logistic Regression (Linear Baseline)":
         clf = LogisticRegression(max_iter=1000, random_state=42)
         clf.fit(X_train.values, y_train.values)
         preds = clf.predict(X_test.values)
+        probs = clf.predict_proba(X_test.values)[:, 1]
+        
         acc = accuracy_score(y_test.values, preds)
         f1 = f1_score(y_test.values, preds)
-        return preds, acc, f1
+        auc = roc_auc_score(y_test.values, probs)
+        
+        # Calculate pseudo-importance from absolute coefficients for linear strategy
+        importances = np.abs(clf.coef_[0])
+        feat_imp_df = pd.DataFrame({
+            'Feature': X_train.columns,
+            'Importance': importances
+        }).sort_values(by='Importance', ascending=False).head(5)
+        
+        return preds, acc, f1, auc, feat_imp_df
         
     else:
-        # Simulated baseline showing historical disparity matched to test length
         np.random.seed(42)
         preds = np.where(sensitive_attr_test == 'Male', 
                         np.random.choice([0, 1], size=len(X_test), p=[0.22, 0.78]),
                         np.random.choice([0, 1], size=len(X_test), p=[0.70, 0.30]))
-        return preds, 0.685, 0.721 
+        
+        # Create mock feature importance list for simulated model
+        mock_df = pd.DataFrame({
+            'Feature': ['Simulated Attribute Alpha', 'Simulated Attribute Beta', 'Noise Factor Vector'],
+            'Importance': [0.65, 0.25, 0.10]
+        })
+        return preds, 0.685, 0.721, 0.642, mock_df
 
 # Run pipeline execution
-predictions, accuracy, f1 = train_and_evaluate_model(model_choice)
+predictions, accuracy, f1, auc_score, feature_importance_df = train_and_evaluate_model(model_choice)
 
 # --- Calculation Routing ---
 rates, ratio = get_demographic_parity(predictions, sensitive_attr_test)
 p_val = run_chi_square(predictions, sensitive_attr_test)
-score = calculate_audit_score(predictions, sensitive_attr_test)
 
 df_metrics = pd.DataFrame({'Actual': y_test.values, 'Predicted': predictions, 'Group': sensitive_attr_test.values})
 frr_rates = {}
@@ -116,9 +142,9 @@ with meta3:
 
 st.markdown("---")
 
-# Row 2: Operational Telemetry
+# Row 2: Operational Telemetry (UPGRADE: Integrated ROC-AUC Score column)
 st.write("### 📊 Operational Telemetry")
-m_col1, m_col2, m_col3, m_col4, m_col4_2 = st.columns(5)
+m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
 
 with m_col1:
     r_delta = f"{ratio - 0.80:.2f} vs Threshold" if ratio >= 0.80 else f"{ratio - 0.80:.2f} Breach"
@@ -129,14 +155,14 @@ with m_col2:
 with m_col3:
     st.metric(label="False Rejection Disparity", value=f"{frr_disparity:.1f}%")
 with m_col4:
-    st.metric(label="Pipeline Test Accuracy", value=f"{accuracy*100:.1f}%", help="Model predictive accuracy on unseen test data partition.")
-with m_col4_2:
-    st.metric(label="Pipeline F1-Score", value=f"{f1:.3f}", help="Balanced harmonic mean of model precision and recall metrics.")
+    st.metric(label="Pipeline Test Accuracy", value=f"{accuracy*100:.1f}%")
+with m_col5:
+    st.metric(label="ROC-AUC Performance Score", value=f"{auc_score:.3f}", help="Area Under the Receiver Operating Characteristic curve. Industry-standard for classification quality.")
 
 st.markdown(" ")
 
-# Row 3: Split Vector Data Frame View
-col_left, col_right = st.columns([2, 1])
+# Row 3: Split Vector Data View vs UPGRADE: Feature Importance Analysis
+col_left, col_right = st.columns([1, 1])
 
 with col_left:
     st.write("#### Vector Selection Metrics")
@@ -148,9 +174,9 @@ with col_left:
     st.table(pd.DataFrame(summary_data))
 
 with col_right:
-    st.write("#### Framework Integrity Score")
-    st.metric(label="Alignment Rating (AAS)", value=f"{score:.1f} / 100")
-    st.progress(int(score))
+    st.write("#### 🔍 Structural Feature Drivers (Top 5)")
+    st.markdown("Identifies which structural fields exert the heaviest mathematical weight during inference operations.")
+    st.dataframe(feature_importance_df, use_container_width=True, hide_index=True)
 
 st.markdown("---")
 
@@ -170,15 +196,16 @@ else:
         f"(p = {p_val:.4f}). The pipeline decisions display uniform mathematical distributions within expected limits."
     )
 
-# Scholarly Interpretation Section
+# UPGRADE: Grounded Scholarly Interpretation Section
 st.markdown(
     """
     <div class='interpretation-box'>
-        <strong>🔬 Methodological Interpretation Note:</strong><br/>
+        <strong>🔬 Methodological Interpretation & Causal Boundaries:</strong><br/>
         A low demographic parity ratio or a significant chi-square test result <em>does not automatically prove intentional discrimination</em> 
         by the algorithm. Observed disparities are frequently indicative of underlying non-uniformities or historical structural inequalities 
-        deeply embedded within the source training dataset matrix itself. Software audits serve to systematically isolate these hidden statistical 
-        variances for governance teams.
+        deeply embedded within the source training dataset matrix itself. By cross-referencing the <strong>Top Predictive Feature Drivers</strong> 
+        (displayed above) with outcome disparities, governance teams can evaluate whether the model is relying on proxy variables that 
+        indirectly encode historical demographic discrepancies, allowing for targeted data-level remediation.
     </div>
     """, 
     unsafe_allow_html=True
@@ -195,7 +222,7 @@ Evaluation Dataset: {dataset_choice}
 ------------------------------------------
 PERFORMANCE METRICS:
 - Predictive Test Accuracy: {accuracy*100:.1f}%
-- Validation F1-Score: {f1:.3f}
+- Validation ROC-AUC Score: {auc_score:.3f}
 
 FAIRNESS & VALIDATION FINDINGS:
 - Demographic Parity Ratio: {ratio:.2f}
