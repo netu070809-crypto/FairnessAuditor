@@ -28,14 +28,18 @@ def train_production_random_forest():
     # CONVERT TEXT TO NUMBERS: One-hot encode all text/categorical columns safely
     X_numeric = pd.get_dummies(X, drop_first=True)
     
+    # FORCE ALL COLUMN NAMES TO STRINGS to satisfy scikit-learn requirements
+    X_numeric.columns = X_numeric.columns.astype(str)
+    
     # Convert target mapping to binary matrix integers (1 for Good, 0 for Bad)
-    # The German Credit Dataset encodes good/bad credit as strings or integers
     y_numeric = target.apply(lambda x: 1 if str(x).strip() in ['1', 'good'] else 0)
     
-    # Train a real Random Forest pipeline on purely numeric data
+    # Train a real Random Forest pipeline on raw arrays to bypass column name checks
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
-    clf.fit(X_numeric, y_numeric)
-    return clf.predict(X_numeric)
+    clf.fit(X_numeric.values, y_numeric.values)
+    
+    # Generate predictions using the raw feature matrix values
+    return clf.predict(X_numeric.values)
 
 # Execute model configuration
 if model_choice == "Random Forest Credit Classifier":
