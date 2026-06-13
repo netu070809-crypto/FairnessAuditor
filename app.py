@@ -11,7 +11,7 @@ from audit_framework import get_demographic_parity
 
 # --- Page Setup ---
 st.set_page_config(
-    page_title="Inference Lab: AP Statistics Compliance Audit", 
+    page_title="Credit Scoring Audit", 
     layout="wide"
 )
 
@@ -104,21 +104,22 @@ p_val_z = 2 * (1 - stats.norm.cdf(abs(z_stat)))
 
 # --- NATIVE STREAMLIT INTERFACE RENDERING ---
 
-st.title("🔬 Advanced Inference Lab & Statistical Audit Workbench")
-st.caption("Quantifying algorithmic outcome distributions using rigorous categorical condition checks and proportion parameters.")
+st.title("🔬 Credit Scoring Audit: A Statistical Analysis of Model Outcomes")
+st.caption("Quantifying outcome distributions across demographic groups using significance tests, interval estimation, and residual mapping.")
 st.markdown("---")
 
 # Row 1: Formal Multi-Test Hypotheses Parameters
 st.markdown("### 📌 **FORMAL STATISTICAL FRAMEWORKS**")
 with st.container(border=True):
     st.markdown(r"""
-#### **Chi-Square Test of Independence** ($df = 1$)
+#### **Chi-Square Test of Independence**
 * **$H_0$:** Credit approval decisions are independent of an applicant's demographic group status.
 * **$H_a$:** Credit approval decisions are dependent on an applicant's demographic group status.
+* *Degrees of Freedom Formula:* $df = (\text{rows} - 1)(\text{columns} - 1) = (2 - 1)(2 - 1) = 1$
 
-#### **Two-Proportion $z$-Test Framework** ($p_{\text{male}} - p_{\text{female}}$)
-* **$H_0$:** $p_{\text{male}} - p_{\text{female}} = 0$ *(The true difference in long-run approval proportions between populations is zero)*
-* **$H_a$:** $p_{\text{male}} - p_{\text{female}} \neq 0$ *(The true difference in long-run approval proportions between populations is non-zero)*
+#### **Two-Proportion $z$-Test Framework**
+* **$H_0$:** $p_{\text{male}} - p_{\text{female}} = 0$
+* **$H_a$:** $p_{\text{male}} - p_{\text{female}} \neq 0$
     """)
 
 # Conditions Explicitly Checked
@@ -129,12 +130,12 @@ with cond_col1:
     with st.container(border=True):
         st.markdown("#### **1. Random Condition**")
         st.success("Passed")
-        st.markdown("> *Data points are assigned via a randomized 80/20 train/test partition matrix, satisfying the requirement for unbiased sampling vectors.*")
+        st.markdown("> *Data points are assigned via a randomized 80/20 train/test split, ensuring independent sampling groups.*")
 with cond_col2:
     with st.container(border=True):
         st.markdown("#### **2. 10% Condition**")
         st.success("Passed")
-        st.markdown(f"> *Our sampling fraction ($n = {len(X_test)}$) is safely less than 10% of the total target population of credit applicants ($n \\le 0.10N$), allowing observations to be treated as independent.*")
+        st.markdown(f"> *The sample size ($n = {len(X_test)}$) is less than 10% of the population ($n \\le 0.10N$), allowing observations to be treated as independent when sampling without replacement.*")
 with cond_col3:
     with st.container(border=True):
         st.markdown("#### **3. Large Counts Condition**")
@@ -143,21 +144,25 @@ with cond_col3:
             st.success("Passed")
         else:
             st.error("Violated")
-        st.markdown("> *All expected frequencies are greater than or equal to 5 ($E \\ge 5$), confirming that the sampling distribution is structurally stable.*")
+        st.markdown(r"> *Formula Check:* $E = \frac{(\text{row total})(\text{column total})}{\text{grand total}} \ge 5$ *for all cells, ensuring the sampling distribution is approximately normal.*")
 
 st.markdown("---")
 
 # Row 2: Head-to-Head Inference Diagnostics
-st.markdown("### 📊 **DUAL-INFERENCE TESTING RESULTS**")
+st.markdown("### 📊 **TESTING METRICS AND FORMULAS**")
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 with col_m1:
     st.metric(label="Chi-Square Statistic (χ²)", value=f"{chi2_stat:.3f}", delta=f"p = {p_val_chi2:.4f}", delta_color="off")
+    st.caption(r"$$\chi^2 = \sum \frac{(O - E)^2}{E}$$")
 with col_m2:
     st.metric(label="Two-Proportion z-Statistic", value=f"{z_stat:.3f}", delta=f"p = {p_val_z:.4f}", delta_color="off")
+    st.caption(r"$$z = \frac{\hat{p}_1 - \hat{p}_2}{\sqrt{\hat{p}_c(1-\hat{p}_c)\left(\frac{1}{n_1} + \frac{1}{n_2}\right)}}$$")
 with col_m3:
     st.metric(label="Measured Disparity (p̂₁ - p̂₂)", value=f"{p_hat_diff*100:+.1f}%")
+    st.caption(r"$$\text{Point Estimate Effect Size}$$")
 with col_m4:
     st.metric(label="Model Accuracy", value=f"{accuracy*100:.1f}%")
+    st.caption(r"$$\frac{\text{True Positives} + \text{True Negatives}}{\text{Total Samples}}$$")
 
 st.markdown("---")
 
@@ -167,7 +172,7 @@ tab1, tab2, tab3 = st.tabs(["🔹 Observed Counts (O)", "🔹 Expected Counts un
 
 with tab1:
     st.dataframe(observed_counts, use_container_width=True)
-    st.markdown(f"`Sample Sizes:` $n_{{male}} = {n_male}$, $n_{{female}} = {n_female}$ | `Calculated Conditional Sample Proportions:` $p\\hat{{}}_{{male}} = {p_hat_m:.4f}$, $p\\hat{{}}_{{female}} = {p_hat_f:.4f}$")
+    st.markdown(f"`Sample Sizes:` $n_{{male}} = {n_male}$, $n_{{female}} = {n_female}$ | `Conditional Sample Proportions Formula:` $\\hat{{p}} = \\frac{{X}}{{n}} \\rightarrow \\hat{{p}}_{{male}} = {p_hat_m:.4f}, \\hat{{p}}_{{female}} = {p_hat_f:.4f}$")
 
 with tab2:
     st.dataframe(expected_counts_df, use_container_width=True)
@@ -175,19 +180,21 @@ with tab2:
 with tab3:
     st.dataframe(residuals_df, use_container_width=True)
     with st.container(border=True):
-        st.markdown(r"#### **🔬 Standardized Residual Analysis ($\frac{O - E}{\sqrt{E}}$)**")
-        st.markdown("> *Residuals measure how far each cell's observed counts deviate from what would be expected under the assumption of independence ($H_0$).*")
-        st.markdown("* **Positive Residual:** Indicates that the model generated more outcomes in that cell than expected under independence.")
-        st.markdown("* **Negative Residual:** Indicates that fewer outcomes occurred than expected.")
+        st.markdown(r"#### **🔬 Standardized Residual Analysis**")
+        st.markdown(r"**Formula:** $$\text{Residual} = \frac{O - E}{\sqrt{E}}$$")
+        st.markdown("> *Residuals measure how far each observed cell deviates from the null hypothesis expectations.*")
+        st.markdown("* **Positive Residual:** More outcomes occurred in that cell than expected under independence.")
+        st.markdown("* **Negative Residual:** Fewer outcomes occurred than expected.")
     st.markdown(f"`Current Matrix Profile:` The Male Approval cell displays a standardized residual of **`{residuals_df.loc['Male', 'Approved (1)']:+.3f}`**.")
 
 st.markdown("---")
 
 # Row 4: Parameter Estimation via Proportions
-st.markdown("### 🔒 **PARAMETER ESTIMATION VIA PROPORTIONS**")
+st.markdown("### 🔒 **PARAMETER ESTIMATION**")
 with st.container(border=True):
     st.markdown(f"#### **95% Confidence Interval for Difference in Proportions ($p_{{\\text{{male}}}} - p_{{\\text{{female}}}}$)**")
     st.markdown(f"## $$ [ {ci_lower:.4f}, \\ \\ {ci_upper:.4f} ] $$ ")
+    st.markdown(r"**Formula:** $$(\hat{p}_1 - \hat{p}_2) \pm z^* \sqrt{\frac{\hat{p}_1(1-\hat{p}_1)}{n_1} + \frac{\hat{p}_2(1-\hat{p}_2)}{n_2}}$$")
     st.info(f"👉 **Formal Interpretation:** We are 95% confident that the true difference in long-run credit approval proportions between male and female applicants ($p_{{\\text{{male}}}} - p_{{\\text{{female}}}}$) lies within the interval calculated above.")
 
 st.markdown("---")
@@ -200,13 +207,13 @@ if active_p < alpha:
     st.error(f"""
 ### **DECISION: REJECT THE NULL HYPOTHESIS ($H_0$) AT α = {alpha}**
 
-Because our matching probability fields ($p = {active_p:.4f}$) fall strictly below our significance boundary ($\alpha = {alpha}$), we reject the null hypothesis ($H_0$). We have found **sufficient, statistically significant empirical evidence** to conclude that credit approval decisions and applicant demographic status are dependent. The calculated effect size ($p\hat{{}}_1 - p\hat{{}}_2 = {p_hat_diff*100:+.1f}$ percentage points) represents a statistically significant operational departure from independence that cannot be rationalized by sampling variability alone.
+Because our calculated probability ($p = {active_p:.4f}$) falls strictly below our significance level ($\alpha = {alpha}$), we reject the null hypothesis ($H_0$). We have found **sufficient, statistically significant empirical evidence** to conclude that credit approval decisions and applicant demographic status are dependent. The calculated effect size ($\hat{{p}}_1 - \hat{{p}}_2 = {p_hat_diff*100:+.1f}$ percentage points) represents a statistically significant operational departure from independence that cannot be rationalized by sampling variability alone.
     """)
 else:
     st.success(f"""
 ### **DECISION: FAIL TO REJECT THE NULL HYPOTHESIS ($H_0$) AT α = {alpha}**
 
-Because our matching probability fields ($p = {active_p:.4f}$) are greater than or equal to our significance boundary ($\alpha = {alpha}$), we fail to reject the null hypothesis ($H_0$). We have **insufficient empirical evidence** to conclude that loan approval decisions vary systematically based on demographic status. The documented variations align cleanly with acceptable levels of random sampling variability.
+Because our calculated probability ($p = {active_p:.4f}$) is greater than or equal to our significance level ($\alpha = {alpha}$), we fail to reject the null hypothesis ($H_0$). We have **insufficient empirical evidence** to conclude that loan approval decisions vary systematically based on demographic status. The documented variations align cleanly with acceptable levels of random sampling variability.
     """)
 
 # Row 6: Methodology & Experimental Design Discussion
@@ -218,8 +225,8 @@ with disc_col1:
     with st.container(border=True):
         st.markdown("#### **1. Formal Error Framework Definitions**")
         st.markdown(r"""
-* **Type I Error:** Rejecting the null hypothesis ($H_0$) when it is actually true. In this context, it means concluding that the model's approval outcomes depend on demographic status when, in reality, the process is completely independent and fair.
-* **Type II Error:** Failing to reject the null hypothesis ($H_0$) when the alternative hypothesis ($H_a$) is true. In this context, it means concluding that the model's approval outcomes are independent of demographic status when, in reality, a systemic outcome dependency is present.
+* **Type I Error ($\alpha$):** Rejecting the null hypothesis ($H_0$) when it is actually true. *In this context:* Concluding that the model's approval outcomes depend on demographic status when the process is actually independent and fair.
+* **Type II Error ($\beta$):** Failing to reject the null hypothesis ($H_0$) when the alternative hypothesis ($H_a$) is true. *In this context:* Concluding that the model's outcomes are independent when a structural dependency actually exists.
         """)
 
 with disc_col2:
@@ -229,8 +236,8 @@ with disc_col2:
 The probability that our test will correctly reject the null hypothesis when a true demographic disparity exists is defined as **Statistical Power ($1 - \beta$)**.
 
 **Core Power Principles:**
-* **Sample Size Relationship:** Increasing our sample size ($n$) reduces standard error, which directly **increases statistical power** and lowers Type II error risk.
-* **Alpha Threshold Relationship:** Setting a higher significance level ($\alpha$) expands our rejection region, which **increases statistical power** but also increases our vulnerability to Type I errors.
+* **Sample Size Relationship:** Increasing sample size ($n$) reduces standard error, which **increases statistical power** and lowers Type II error risk.
+* **Alpha Threshold Relationship:** Setting a higher significance level ($\alpha$) expands the rejection region, which **increases statistical power** but increases vulnerability to Type I errors.
         """)
 
 st.markdown("---")
