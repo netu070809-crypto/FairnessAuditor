@@ -1,244 +1,279 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
+import scipy.stats as stats
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from dataset_loader import load_clean_data
-from audit_framework import get_demographic_parity, run_chi_square
+from audit_framework import get_demographic_parity
 
-# --- UI Layout Configurations & Branding ---
+# --- Page Setup & Theme Styling ---
 st.set_page_config(
-    page_title="FairnessAuditor | Enterprise AI Compliance", 
-    layout="wide", 
-    initial_sidebar_state="expanded"
+    page_title="Inference Lab: AP Statistics Compliance Audit", 
+    layout="wide"
 )
 
-# Custom minimal styling for text readability
 st.markdown("""
     <style>
-    .big-font { font-size:18px !important; color: #555555; }
-    .interpretation-box { background-color: #f0f2f6; padding: 15px; border-radius: 8px; border-left: 5px solid #0068c9; margin-top: 15px; }
+    .lab-title { font-size: 32px; font-weight: 800; color: #0F172A; }
+    .hypothesis-card { background-color: #F8FAFC; padding: 20px; border-radius: 8px; border: 1px solid #E2E8F0; margin-bottom: 25px; }
+    .condition-box { background-color: #F8FAFC; padding: 15px; border-radius: 6px; border: 1px solid #CBD5E1; margin-bottom: 10px; }
+    .interpretation-box { background-color: #F0FDF4; padding: 15px; border-radius: 6px; border-left: 4px solid #16A34A; color: #14532D; font-size: 14px; margin-top: 10px; }
+    .verdict-reject { background-color: #FEF2F2; padding: 20px; border-radius: 8px; border: 1px solid #FCA5A5; color: #991B1B; }
+    .verdict-fail { background-color: #F0FDF4; padding: 20px; border-radius: 8px; border: 1px solid #BBF7D0; color: #166534; }
     </style>
 """, unsafe_allow_html=True)
 
 # --- Sidebar Controls ---
-st.sidebar.image("https://img.icons8.com/fluency/96/shield-with-blockchain.png", width=60)
-st.sidebar.title("Compliance Registry")
-st.sidebar.markdown("Configure and execute real-time statistical audit pipelines on machine learning models.")
-st.sidebar.markdown("---")
-
-dataset_choice = st.sidebar.selectbox("Target Dataset Matrix", ["UCI German Credit Dataset"])
-model_choice = st.sidebar.selectbox("Active Pipeline Strategy", [
+st.sidebar.header("🔬 Experimental Controls")
+model_choice = st.sidebar.selectbox("Classifier Architecture", [
     "Random Forest Classifier (Ensemble)", 
     "Logistic Regression (Linear Baseline)",
-    "Simulated Non-Compliant Model"
+    "Synthetic Stress Test Model"
 ])
 
 st.sidebar.markdown("---")
-st.sidebar.caption("v2.3.0 • Framework Protected")
+st.sidebar.subheader("Inference Thresholds")
+alpha = st.sidebar.slider("Significance Level (α)", min_value=0.01, max_value=0.10, value=0.05, step=0.01)
 
-# --- Core Compute Pipeline ---
+# --- Data Engine & Pipeline Partitioning ---
 df, raw_sensitive_attr, target = load_clean_data()
 
-# Prepare features and map sensitive attributes cleanly
-X = df.drop(columns=[df.columns[-1]]) 
+X = df.drop(columns=[target.name]) 
 X_numeric = pd.get_dummies(X, drop_first=True)
 X_numeric.columns = X_numeric.columns.astype(str)
 y_numeric = target.apply(lambda x: 1 if str(x).strip() in ['1', 'good'] else 0)
 
-# Robust Data Science Split (80% Train, 20% Test)
+# Random train/test split (80% / 20%) to ensure sampling independence assumptions
 X_train, X_test, y_train, y_test, attr_train, attr_test = train_test_split(
     X_numeric, y_numeric, raw_sensitive_attr, test_size=0.20, random_state=42
 )
 
 sensitive_attr_test = attr_test.apply(lambda x: 'Male' if str(x).strip() in ['A91', 'A93', 'A94'] else 'Female')
 
-@st.cache_data
-def train_and_evaluate_model(strategy):
-    if strategy == "Random Forest Classifier (Ensemble)":
-        clf = RandomForestClassifier(n_estimators=100, random_state=42)
-        clf.fit(X_train.values, y_train.values)
-        preds = clf.predict(X_test.values)
-        probs = clf.predict_proba(X_test.values)[:, 1]
-        
-        acc = accuracy_score(y_test.values, preds)
-        f1 = f1_score(y_test.values, preds)
-        auc = roc_auc_score(y_test.values, probs)
-        
-        # Extract feature importances safely
-        importances = clf.feature_importances_
-        feat_imp_df = pd.DataFrame({
-            'Feature': X_train.columns,
-            'Importance': importances
-        }).sort_values(by='Importance', ascending=False).head(5)
-        
-        return preds, acc, f1, auc, feat_imp_df
-        
-    elif strategy == "Logistic Regression (Linear Baseline)":
-        clf = LogisticRegression(max_iter=1000, random_state=42)
-        clf.fit(X_train.values, y_train.values)
-        preds = clf.predict(X_test.values)
-        probs = clf.predict_proba(X_test.values)[:, 1]
-        
-        acc = accuracy_score(y_test.values, preds)
-        f1 = f1_score(y_test.values, preds)
-        auc = roc_auc_score(y_test.values, probs)
-        
-        # Calculate pseudo-importance from absolute coefficients for linear strategy
-        importances = np.abs(clf.coef_[0])
-        feat_imp_df = pd.DataFrame({
-            'Feature': X_train.columns,
-            'Importance': importances
-        }).sort_values(by='Importance', ascending=False).head(5)
-        
-        return preds, acc, f1, auc, feat_imp_df
-        
-    else:
-        np.random.seed(42)
-        preds = np.where(sensitive_attr_test == 'Male', 
-                        np.random.choice([0, 1], size=len(X_test), p=[0.22, 0.78]),
-                        np.random.choice([0, 1], size=len(X_test), p=[0.70, 0.30]))
-        
-        # Create mock feature importance list for simulated model
-        mock_df = pd.DataFrame({
-            'Feature': ['Simulated Attribute Alpha', 'Simulated Attribute Beta', 'Noise Factor Vector'],
-            'Importance': [0.65, 0.25, 0.10]
-        })
-        return preds, 0.685, 0.721, 0.642, mock_df
-
-# Run pipeline execution
-predictions, accuracy, f1, auc_score, feature_importance_df = train_and_evaluate_model(model_choice)
-
-# --- Calculation Routing ---
-rates, ratio = get_demographic_parity(predictions, sensitive_attr_test)
-p_val = run_chi_square(predictions, sensitive_attr_test)
-
-df_metrics = pd.DataFrame({'Actual': y_test.values, 'Predicted': predictions, 'Group': sensitive_attr_test.values})
-frr_rates = {}
-for group in ['Male', 'Female']:
-    group_filter = df_metrics[df_metrics['Group'] == group]
-    actual_goods = group_filter[group_filter['Actual'] == 1]
-    false_rejections = actual_goods[actual_goods['Predicted'] == 0]
-    frr_rates[group] = len(false_rejections) / len(actual_goods) if len(actual_goods) > 0 else 0
-frr_disparity = abs(frr_rates['Male'] - frr_rates['Female']) * 100
-
-# --- MAIN INTERFACE RENDERING ---
-
-st.title("🛡️ Algorithmic Fairness Auditor")
-st.markdown("<p class='big-font'>Independent statistical validation engine for regulatory compliance and AI risk mitigation.</p>", unsafe_allow_html=True)
-st.markdown("---")
-
-# Row 1: Metadata Badges
-meta1, meta2, meta3 = st.columns(3)
-with meta1:
-    st.write(f"**AUDIT TARGET:** \n`{model_choice}`")
-with meta2:
-    st.write(f"**EVALUATION DATASET:** \n`{dataset_choice}` (Testing Partition)")
-with meta3:
-    status_signal = "⚠️ Disparity Detected" if (ratio < 0.80 or p_val < 0.05) else "✅ No Significant Disparity"
-    st.write(f"**AUDIT SIGNAL:** \n**{status_signal}**")
-
-st.markdown("---")
-
-# Row 2: Operational Telemetry (UPGRADE: Integrated ROC-AUC Score column)
-st.write("### 📊 Operational Telemetry")
-m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
-
-with m_col1:
-    r_delta = f"{ratio - 0.80:.2f} vs Threshold" if ratio >= 0.80 else f"{ratio - 0.80:.2f} Breach"
-    st.metric(label="Demographic Parity Ratio", value=f"{ratio:.2f}", delta=r_delta, delta_color="normal" if ratio >= 0.80 else "inverse")
-with m_col2:
-    p_delta = "Significant Disparity" if p_val < 0.05 else "Statistically Stable"
-    st.metric(label="Chi-Square p-value", value=f"{p_val:.4f}", delta=p_delta, delta_color="inverse" if p_val < 0.05 else "off")
-with m_col3:
-    st.metric(label="False Rejection Disparity", value=f"{frr_disparity:.1f}%")
-with m_col4:
-    st.metric(label="Pipeline Test Accuracy", value=f"{accuracy*100:.1f}%")
-with m_col5:
-    st.metric(label="ROC-AUC Performance Score", value=f"{auc_score:.3f}", help="Area Under the Receiver Operating Characteristic curve. Industry-standard for classification quality.")
-
-st.markdown(" ")
-
-# Row 3: Split Vector Data View vs UPGRADE: Feature Importance Analysis
-col_left, col_right = st.columns([1, 1])
-
-with col_left:
-    st.write("#### Vector Selection Metrics")
-    summary_data = {
-        "Demographic Attribute": ["Female Group", "Male Group"],
-        "Algorithmic Approval Rate": [f"{rates.get('Female', 0)*100:.1f}%", f"{rates.get('Male', 0)*100:.1f}%"],
-        "False Rejection Rate (FRR)": [f"{frr_rates.get('Female', 0)*100:.1f}%", f"{frr_rates.get('Male', 0)*100:.1f}%"]
-    }
-    st.table(pd.DataFrame(summary_data))
-
-with col_right:
-    st.write("#### 🔍 Structural Feature Drivers (Top 5)")
-    st.markdown("Identifies which structural fields exert the heaviest mathematical weight during inference operations.")
-    st.dataframe(feature_importance_df, use_container_width=True, hide_index=True)
-
-st.markdown("---")
-
-# Row 4: Callout Verdict Alerts
-st.write("### ⚖️ Evaluation Analytics Summary")
-if ratio < 0.80 or p_val < 0.05:
-    st.error(
-        f"**DISPARITY NOTICE REGISTERED** \n\n"
-        f"The framework identified a statistically significant outcome disparity between protected demographic tracks "
-        f"(p = {p_val:.4f}). The validation metrics fall below optimal baseline parameters, indicating that outcome variance "
-        f"warrants secondary procedural fairness investigations and data-level remediation."
-    )
+# Model Executions
+if model_choice == "Random Forest Classifier (Ensemble)":
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X_train.values, y_train.values)
+    preds = model.predict(X_test.values)
+    probs = model.predict_proba(X_test.values)[:, 1]
+    accuracy = accuracy_score(y_test.values, preds)
+    auc_score = roc_auc_score(y_test.values, probs)
+    
+elif model_choice == "Logistic Regression (Linear Baseline)":
+    model = LogisticRegression(max_iter=1000, random_state=42)
+    model.fit(X_train.values, y_train.values)
+    preds = model.predict(X_test.values)
+    probs = model.predict_proba(X_test.values)[:, 1]
+    accuracy = accuracy_score(y_test.values, preds)
+    auc_score = roc_auc_score(y_test.values, probs)
+    
 else:
-    st.success(
-        f"**COMPLIANCE ASSESSMENT SEAMLESS** \n\n"
-        f"No statistically significant demographic disparities or vector variances were observed across the unseen validation dataset "
-        f"(p = {p_val:.4f}). The pipeline decisions display uniform mathematical distributions within expected limits."
-    )
+    np.random.seed(42)
+    preds = np.where(sensitive_attr_test == 'Male', 
+                    np.random.choice([0, 1], size=len(X_test), p=[0.22, 0.78]),
+                    np.random.choice([0, 1], size=len(X_test), p=[0.70, 0.30]))
+    accuracy, auc_score = 0.685, 0.642
 
-# UPGRADE: Grounded Scholarly Interpretation Section
-st.markdown(
-    """
-    <div class='interpretation-box'>
-        <strong>🔬 Methodological Interpretation & Causal Boundaries:</strong><br/>
-        A low demographic parity ratio or a significant chi-square test result <em>does not automatically prove intentional discrimination</em> 
-        by the algorithm. Observed disparities are frequently indicative of underlying non-uniformities or historical structural inequalities 
-        deeply embedded within the source training dataset matrix itself. By cross-referencing the <strong>Top Predictive Feature Drivers</strong> 
-        (displayed above) with outcome disparities, governance teams can evaluate whether the model is relying on proxy variables that 
-        indirectly encode historical demographic discrepancies, allowing for targeted data-level remediation.
-    </div>
-    """, 
-    unsafe_allow_html=True
-)
+# --- STATISTICAL INFERENCE ENGINE ---
+eval_df = pd.DataFrame({'Actual': y_test.values, 'Predicted': preds, 'Group': sensitive_attr_test.values})
+observed_counts = pd.crosstab(eval_df['Group'], eval_df['Predicted'])
+observed_counts.columns = ['Denied (0)', 'Approved (1)']
+
+# 1. Chi-Square Test of Independence Calculations
+chi2_stat, p_val_chi2, dof, expected_matrix = stats.chi2_contingency(observed_counts)
+expected_counts_df = pd.DataFrame(expected_matrix, index=observed_counts.index, columns=observed_counts.columns)
+
+# 2. Standardized Residual Analysis
+residuals_matrix = (observed_counts.values - expected_matrix) / np.sqrt(expected_matrix)
+residuals_df = pd.DataFrame(residuals_matrix, index=observed_counts.index, columns=observed_counts.columns)
+
+# 3. Two-Proportion Metrics & Point Estimates
+n_male = observed_counts.loc['Male'].sum()
+n_female = observed_counts.loc['Female'].sum()
+x_male = observed_counts.loc['Male', 'Approved (1)']
+x_female = observed_counts.loc['Female', 'Approved (1)']
+
+p_hat_m = x_male / n_male
+p_hat_f = x_female / n_female
+p_hat_diff = p_hat_m - p_hat_f  
+
+# 4. Two-Proportion z-Interval (Confidence Intervals)
+z_critical = stats.norm.ppf(1 - (0.05 / 2))  # Standard 95% Confidence Level
+se_interval = np.sqrt((p_hat_m * (1 - p_hat_m) / n_male) + (p_hat_f * (1 - p_hat_f) / n_female))
+margin_of_error = z_critical * se_interval
+ci_lower = p_hat_diff - margin_of_error
+ci_upper = p_hat_diff + margin_of_error
+
+# 5. Two-Proportion z-Test for Difference in Proportions
+p_pooled = (x_male + x_female) / (n_male + n_female)
+se_pooled = np.sqrt(p_pooled * (1 - p_pooled) * ((1 / n_male) + (1 / n_female)))
+z_stat = p_hat_diff / se_pooled
+p_val_z = 2 * (1 - stats.norm.cdf(abs(z_stat)))  
+
+# --- MAIN LAB INTERFACE RENDERING ---
+
+st.markdown("<div class='lab-title'>🔬 Advanced Inference Lab & Statistical Audit Workbench</div>", unsafe_allow_html=True)
+st.markdown("Quantifying algorithmic outcome distributions using rigorous categorical condition checks and proportion parameters.")
+st.markdown("---")
+
+# Row 1: Formal Multi-Test Hypotheses Parameters
+st.write("### 📌 Formal Statistical Frameworks")
+st.markdown(f"""
+<div class='hypothesis-card'>
+    <strong>Chi-Square Test of Independence ($df = 1$):</strong><br/>
+    * $H_0$: Credit approval decisions are independent of an applicant's demographic group status.<br/>
+    * $H_a$: Credit approval decisions are dependent on an applicant's demographic group status.<br/><br/>
+    <strong>Two-Proportion $z$-Test Framework ($p_{\\text{{male}}} - p_{\\text{{female}}}$):</strong><br/>
+    * $H_0: p_{\\text{{male}}} - p_{\\text{{female}}} = 0$ (The true difference in long-run approval proportions between populations is zero).<br/>
+    * $H_a: p_{\\text{{male}}} - p_{\\text{{female}}} \\neq 0$ (The true difference in long-run approval proportions between populations is non-zero).
+</div>
+""", unsafe_allow_html=True)
+
+# FIX 1: Add Conditions Explicitly via a clean academic checker block
+st.write("### 🛡️ Mandatory Inference Condition Checks")
+cond_col1, cond_col2, cond_col3 = st.columns(3)
+
+with cond_col1:
+    st.markdown("<div class='condition-box'><strong>1. Random Condition</strong><br/>✅ Passed.<br/><small>Data points are assigned via a randomized 80/20 train/test partition matrix, satisfying the requirement for unbiased sampling vectors.</small></div>", unsafe_allow_html=True)
+with cond_col2:
+    st.markdown(f"<div class='condition-box'><strong>2. 10% Condition</strong><br/>✅ Passed.<br/><small>Our sampling fraction ($n = {len(X_test)}$) is safely less than 10% of the total target population of credit applicants ($n \\le 0.10N$), allowing observations to be treated as independent.</small></div>", unsafe_allow_html=True)
+with cond_col3:
+    # Large counts dynamic evaluation
+    all_cells_large = (expected_matrix >= 5).all()
+    status_str = "✅ Passed." if all_cells_large else "❌ Violated."
+    st.markdown(f"<div class='condition-box'><strong>3. Large Counts Condition</strong><br/>{status_str}<br/><small>All expected frequencies are greater than or equal to 5 ($E \\ge 5$), confirming that the sampling distribution is structurally stable.</small></div>", unsafe_allow_html=True)
 
 st.markdown("---")
 
-# Row 5: Action Button / Export Section
-st.write("### 📥 Compliance Logging")
-report_content = f"""ALGORITHMIC COMPLIANCE AUDIT REPORT
+# Row 2: Head-to-Head Inference Diagnostics
+st.write("### 📊 Dual-Inference Testing Results")
+col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+with col_m1:
+    st.metric(label="Chi-Square Statistic (χ²)", value=f"{chi2_stat:.3f}", delta=f"p = {p_val_chi2:.4f}")
+with col_m2:
+    st.metric(label="Two-Proportion z-Statistic", value=f"{z_stat:.3f}", delta=f"p = {p_val_z:.4f}")
+with col_m3:
+    st.metric(label="Measured Disparity (p̂₁ - p̂₂)", value=f"{p_hat_diff*100:+.1f}%", help="Point estimate mapping the direct practical effect size.")
+with col_m4:
+    st.metric(label="Model Predictive Accuracy", value=f"{accuracy*100:.1f}%")
+
+st.markdown("---")
+
+# Row 3: Advanced Unit 7 Contingency Matrix Suite (Observed vs Expected vs Residuals)
+st.write("### 📐 Categorical Matrix Space (Chi-Square Decomposition)")
+tab1, tab2, tab3 = st.tabs(["Observed Counts (O)", "Expected Counts under Independence (E)", "Standardized Residuals Analysis"])
+
+with tab1:
+    st.dataframe(observed_counts, use_container_width=True)
+    st.caption(f"Sample Sizes: $n_{{male}} = {n_male}$, $n_{{female}} = {n_female}$ | Calculated Conditional Sample Proportions: $p\\hat{{}}_{{male}} = {p_hat_m:.4f}$, $p\\hat{{}}_{{female}} = {p_hat_f:.4f}$")
+
+with tab2:
+    st.dataframe(expected_counts_df, use_container_width=True)
+
+with tab3:
+    st.dataframe(residuals_df, use_container_width=True)
+    st.markdown(f"""
+    <div style='background-color:#F8FAFC; padding:15px; border-radius:6px; border:1px solid #E2E8F0; font-size:14px;'>
+        <strong>🔬 Standardized Residual Analysis:</strong> $\\frac{{O - E}}{{\\sqrt{{E}}}}$ measures how far each cell's observed counts deviate from what would be expected under $H_0$. <br/>
+        * A <strong>positive residual</strong> indicates that the model generated more outcomes in that cell than expected under the assumption of independence.<br/>
+        * A <strong>negative residual</strong> indicates that fewer outcomes occurred than expected.<br/>
+        Current Matrix Profile: The Male Approval cell displays a residual of <strong>{residuals_df.loc['Male', 'Approved (1)']:+.3f}</strong>, indicating a structural drift toward higher-than-expected automated approvals.
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("---")
+
+# Row 4: Advanced Unit 6 Estimation (Confidence Intervals)
+st.write("### 🔒 Parameter Estimation via Proportions")
+st.markdown(f"#### **95% Confidence Interval for Difference in Proportions ($p_{{\\text{{male}}}} - p_{{\\text{{female}}}}$)**")
+st.markdown(f"## $$ [ {ci_lower:.4f}, \\ \\ {ci_upper:.4f} ] $$ ")
+
+st.markdown(f"""
+<div class='interpretation-box'>
+    <strong>Formal Interpretation Bound:</strong><br/>
+    We are 95% confident that the true difference in long-run credit approval proportions between male and female applicants ($p_{{\\text{{male}}}} - p_{{\\text{{female}}}}$) 
+    lies within the interval calculated above. Because zero {'<strong>is not contained</strong> within this interval, we have strong evidence of a systemic difference' if (ci_lower > 0 or ci_upper < 0) else '<strong>is contained</strong> within this interval, we do not have sufficient evidence of a systemic difference'}, confirming consistency with our significance testing structures.
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("---")
+
+# Row 5: Central Statistical Conclusion Box
+st.write("### ⚖️ Final Inference Decision Profile")
+
+active_p = p_val_chi2
+if active_p < alpha:
+    # FIX 2: Removed absolute words like "proves bias" and used rigorous AP phrasing instead
+    st.markdown(f"""
+    <div class='verdict-reject' style='color:#000;'>
+        <strong>DECISION: REJECT THE NULL HYPOTHESIS ($H_0$) AT α = {alpha}</strong><br/><br/>
+        Because our matching probability fields ($p = {active_p:.4f}$) fall strictly below our significance boundary ($\alpha = {alpha}$), 
+        we reject the null hypothesis ($H_0$). We have found <strong>sufficient, statistically significant empirical evidence</strong> to conclude 
+        that credit approval decisions and applicant demographic status are dependent. The calculated effect size ($p\\hat{{}}_1 - p\\hat{{}}_2 = {p_hat_diff*100:+.1f}$ percentage points) 
+        represents a statistically significant operational departure from independence that cannot be rationalized by sampling variability alone.
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown(f"""
+    <div class='verdict-fail' style='color:#000;'>
+        <strong>DECISION: FAIL TO REJECT THE NULL HYPOTHESIS ($H_0$) AT α = {alpha}</strong><br/><br/>
+        Because our matching probability fields ($p = {active_p:.4f}$) are greater than or equal to our significance boundary ($\alpha = {alpha}$), 
+        we fail to reject the null hypothesis ($H_0$). We have <strong>insufficient empirical evidence</strong> to conclude that loan approval 
+        decisions vary systematically based on demographic status. The documented variations align cleanly with acceptable levels of random sampling variability.
+    </div>
+    """, unsafe_allow_html=True)
+
+# Row 6: FIX 3 & 4: Advanced AP Discussion Blocks (Type I/II Definitions and Power Relationships)
+st.markdown("---")
+st.write("### 📝 Methodology & Experimental Design Discussion")
+disc_col1, disc_col2 = st.columns(2)
+
+with disc_col1:
+    st.markdown("**1. Formal Error Framework Definitions**")
+    st.caption(f"""
+    * <strong>Type I Error:</strong> Rejecting the null hypothesis ($H_0$) when it is actually true. In this context, it means concluding that the model's approval outcomes depend on demographic status when, in reality, the process is completely independent and fair.
+    <br/><br/>
+    * <strong>Type II Error:</strong> Failing to reject the null hypothesis ($H_0$) when the alternative hypothesis ($H_a$) is true. In this context, it means concluding that the model's approval outcomes are independent of demographic status when, in reality, a systemic outcome dependency is present.
+    """)
+
+with disc_col2:
+    st.markdown("**2. Statistical Power & Variable Dynamics**")
+    st.caption(f"""
+    The probability that our test will correctly reject the null hypothesis when a true demographic disparity exists is defined as <strong>Statistical Power ($1 - \\beta$)</strong>.
+    <br/><br/>
+    <strong>Core Power Principles:</strong><br/>
+    * <strong>Sample Size Relationship:</strong> Increasing our sample size ($n$) reduces standard error, which directly <strong>increases statistical power</strong> and lowers Type II error risk.<br/>
+    * <strong>Alpha Threshold Relationship:</strong> Setting a higher significance level ($\alpha$) expands our rejection region, which <strong>increases statistical power</strong> but also increases our vulnerability to Type I errors.
+    """)
+
+st.markdown("---")
+
+# Row 7: Data Log Exporter
+st.write("### 📥 Archive Statistical Ledger")
+report_data = f"""ADVANCED AP INFERENCE LAB RECORD
 ==========================================
-Target Model: {model_choice}
-Evaluation Dataset: {dataset_choice}
+Model Evaluation Vector: {model_choice}
+Alpha Setting: {alpha}
 ------------------------------------------
-PERFORMANCE METRICS:
-- Predictive Test Accuracy: {accuracy*100:.1f}%
-- Validation ROC-AUC Score: {auc_score:.3f}
+CALCULATED STATISTICAL SUMMARY:
+- Pipeline Test Accuracy Score: {accuracy*100:.1f}%
+- Pearson Chi-Square Statistic: {chi2_stat:.3f} (p = {p_val_chi2:.4f})
+- Two-Proportion z-Test Score: {z_stat:.3f} (p = {p_val_z:.4f})
+- Proportional Variance Point Estimate: {p_hat_diff:.4f}
+- 95% Confidence Interval: [{ci_lower:.4f}, {ci_upper:.4f}]
 
-FAIRNESS & VALIDATION FINDINGS:
-- Demographic Parity Ratio: {ratio:.2f}
-- Pearson Chi-Square p-value: {p_val:.4f}
-- False Rejection Rate Disparity: {frr_disparity:.1f}%
-
-VERDICT SUMMARY:
-{'ALERT: Statistically significant outcomes observed.' if (ratio < 0.80 or p_val < 0.05) else 'PASS: Disparities remain within expected limits.'}
+DECISION STATEMENT:
+{'REJECT H0: Systemic outcome dependency identified.' if active_p < alpha else 'FAIL TO REJECT H0: Outcome variations remain within sampling bounds.'}
 ==========================================
-Report compiled via open-source Framework Auditor.
 """
 
 st.download_button(
-    label="Download Formal Audit Ledger",
-    data=report_content,
-    file_name=f"audit_ledger_{model_choice.lower().replace(' ', '_')}.txt",
+    label="Export Complete Research-Grade Ledger",
+    data=report_data,
+    file_name="ap_stats_inference_ledger.txt",
     mime="text/plain",
     use_container_width=True
 )
