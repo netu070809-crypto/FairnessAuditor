@@ -109,7 +109,7 @@ meta1, meta2, meta3 = st.columns(3)
 with meta1:
     st.write(f"**AUDIT TARGET:** \n`{model_choice}`")
 with meta2:
-    st.write(f"**EVALUATION DATASET:** \n`{dataset_choice}` (Testing Partition)`")
+    st.write(f"**EVALUATION DATASET:** \n`{dataset_choice}` (Testing Partition)")
 with meta3:
     status_signal = "⚠️ Disparity Detected" if (ratio < 0.80 or p_val < 0.05) else "✅ No Significant Disparity"
     st.write(f"**AUDIT SIGNAL:** \n**{status_signal}**")
@@ -148,8 +148,9 @@ with col_left:
     st.table(pd.DataFrame(summary_data))
 
 with col_right:
-    st.write("#### Metric Framework Score")
-    st.circular_progress(value=score/100, text=f"{score:.1f}/100")
+    st.write("#### Framework Integrity Score")
+    st.metric(label="Alignment Rating (AAS)", value=f"{score:.1f} / 100")
+    st.progress(int(score))
 
 st.markdown("---")
 
