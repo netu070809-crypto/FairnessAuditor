@@ -48,7 +48,7 @@ X_numeric = pd.get_dummies(X, drop_first=True)
 X_numeric.columns = X_numeric.columns.astype(str)
 y_numeric = target.apply(lambda x: 1 if str(x).strip() in ['1', 'good'] else 0)
 
-# UPGRADE: Robust Data Science Split (80% Train, 20% Test)
+# Robust Data Science Split (80% Train, 20% Test)
 X_train, X_test, y_train, y_test, attr_train, attr_test = train_test_split(
     X_numeric, y_numeric, raw_sensitive_attr, test_size=0.20, random_state=42
 )
@@ -79,7 +79,7 @@ def train_and_evaluate_model(strategy):
         preds = np.where(sensitive_attr_test == 'Male', 
                         np.random.choice([0, 1], size=len(X_test), p=[0.22, 0.78]),
                         np.random.choice([0, 1], size=len(X_test), p=[0.70, 0.30]))
-        return preds, 0.685, 0.721 # Static baseline metrics for simulation
+        return preds, 0.685, 0.721 
 
 # Run pipeline execution
 predictions, accuracy, f1 = train_and_evaluate_model(model_choice)
@@ -104,19 +104,19 @@ st.title("🛡️ Algorithmic Fairness Auditor")
 st.markdown("<p class='big-font'>Independent statistical validation engine for regulatory compliance and AI risk mitigation.</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# Row 1: Metadata Badges (RECALIBRATED: Swapped "Regulatory Status" for "Audit Signal")
+# Row 1: Metadata Badges
 meta1, meta2, meta3 = st.columns(3)
 with meta1:
-    st.markdown(f"**AUDIT TARGET:** \n`{model_choice}`")
+    st.write(f"**AUDIT TARGET:** \n`{model_choice}`")
 with meta2:
-    st.markdown(f"**EVALUATION DATASET:** \n`{dataset_choice}` (Testing Partition)")
+    st.write(f"**EVALUATION DATASET:** \n`{dataset_choice}` (Testing Partition)`")
 with meta3:
     status_signal = "⚠️ Disparity Detected" if (ratio < 0.80 or p_val < 0.05) else "✅ No Significant Disparity"
-    st.markdown(f"**AUDIT SIGNAL:** \n**{status_signal}**")
+    st.write(f"**AUDIT SIGNAL:** \n**{status_signal}**")
 
 st.markdown("---")
 
-# Row 2: UPGRADE - Model Predictive Performance vs. Fairness Telemetry
+# Row 2: Operational Telemetry
 st.write("### 📊 Operational Telemetry")
 m_col1, m_col2, m_col3, m_col4, m_col4_2 = st.columns(5)
 
@@ -153,25 +153,64 @@ with col_right:
 
 st.markdown("---")
 
-# Row 4: Callout Verdict Alerts (RECALIBRATED: Research-Quality Language)
+# Row 4: Callout Verdict Alerts
 st.write("### ⚖️ Evaluation Analytics Summary")
 if ratio < 0.80 or p_val < 0.05:
     st.error(
         f"**DISPARITY NOTICE REGISTERED** \n\n"
         f"The framework identified a statistically significant outcome disparity between protected demographic tracks "
-        f"($p = {p_val:.4f}$). The validation metrics fall below optimal baseline parameters, indicating that outcome variance "
+        f"(p = {p_val:.4f}). The validation metrics fall below optimal baseline parameters, indicating that outcome variance "
         f"warrants secondary procedural fairness investigations and data-level remediation."
     )
 else:
     st.success(
         f"**COMPLIANCE ASSESSMENT SEAMLESS** \n\n"
         f"No statistically significant demographic disparities or vector variances were observed across the unseen validation dataset "
-        f"($p = {p_val:.4f}$). The pipeline decisions display uniform mathematical distributions within expected limits."
+        f"(p = {p_val:.4f}). The pipeline decisions display uniform mathematical distributions within expected limits."
     )
 
-# UPGRADE: Scholarly Interpretation Section
+# Scholarly Interpretation Section
 st.markdown(
     """
     <div class='interpretation-box'>
         <strong>🔬 Methodological Interpretation Note:</strong><br/>
-        A low demographic parity ratio or a significant chi-square test result <em>does not automatically prove intentional discrimination</em>
+        A low demographic parity ratio or a significant chi-square test result <em>does not automatically prove intentional discrimination</em> 
+        by the algorithm. Observed disparities are frequently indicative of underlying non-uniformities or historical structural inequalities 
+        deeply embedded within the source training dataset matrix itself. Software audits serve to systematically isolate these hidden statistical 
+        variances for governance teams.
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
+
+st.markdown("---")
+
+# Row 5: Action Button / Export Section
+st.write("### 📥 Compliance Logging")
+report_content = f"""ALGORITHMIC COMPLIANCE AUDIT REPORT
+==========================================
+Target Model: {model_choice}
+Evaluation Dataset: {dataset_choice}
+------------------------------------------
+PERFORMANCE METRICS:
+- Predictive Test Accuracy: {accuracy*100:.1f}%
+- Validation F1-Score: {f1:.3f}
+
+FAIRNESS & VALIDATION FINDINGS:
+- Demographic Parity Ratio: {ratio:.2f}
+- Pearson Chi-Square p-value: {p_val:.4f}
+- False Rejection Rate Disparity: {frr_disparity:.1f}%
+
+VERDICT SUMMARY:
+{'ALERT: Statistically significant outcomes observed.' if (ratio < 0.80 or p_val < 0.05) else 'PASS: Disparities remain within expected limits.'}
+==========================================
+Report compiled via open-source Framework Auditor.
+"""
+
+st.download_button(
+    label="Download Formal Audit Ledger",
+    data=report_content,
+    file_name=f"audit_ledger_{model_choice.lower().replace(' ', '_')}.txt",
+    mime="text/plain",
+    use_container_width=True
+)
