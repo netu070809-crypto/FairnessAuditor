@@ -119,20 +119,20 @@ st.markdown("<div class='lab-title'>🔬 Advanced Inference Lab & Statistical Au
 st.markdown("Quantifying algorithmic outcome distributions using rigorous categorical condition checks and proportion parameters.")
 st.markdown("---")
 
-# Row 1: Formal Multi-Test Hypotheses Parameters
+# Row 1: Formal Multi-Test Hypotheses Parameters (Fixed with raw 'r' string formatting)
 st.write("### 📌 Formal Statistical Frameworks")
-st.markdown(f"""
+st.markdown(r"""
 <div class='hypothesis-card'>
     <strong>Chi-Square Test of Independence ($df = 1$):</strong><br/>
     * $H_0$: Credit approval decisions are independent of an applicant's demographic group status.<br/>
     * $H_a$: Credit approval decisions are dependent on an applicant's demographic group status.<br/><br/>
-    <strong>Two-Proportion $z$-Test Framework ($p_{\\text{{male}}} - p_{\\text{{female}}}$):</strong><br/>
-    * $H_0: p_{\\text{{male}}} - p_{\\text{{female}}} = 0$ (The true difference in long-run approval proportions between populations is zero).<br/>
-    * $H_a: p_{\\text{{male}}} - p_{\\text{{female}}} \\neq 0$ (The true difference in long-run approval proportions between populations is non-zero).
+    <strong>Two-Proportion $z$-Test Framework ($p_{\text{male}} - p_{\text{female}}$):</strong><br/>
+    * $H_0: p_{\text{male}} - p_{\text{female}} = 0$ (The true difference in long-run approval proportions between populations is zero).<br/>
+    * $H_a: p_{\text{male}} - p_{\text{female}} \neq 0$ (The true difference in long-run approval proportions between populations is non-zero).
 </div>
 """, unsafe_allow_html=True)
 
-# FIX 1: Add Conditions Explicitly via a clean academic checker block
+# Conditions Explicitly Checked
 st.write("### 🛡️ Mandatory Inference Condition Checks")
 cond_col1, cond_col2, cond_col3 = st.columns(3)
 
@@ -141,7 +141,6 @@ with cond_col1:
 with cond_col2:
     st.markdown(f"<div class='condition-box'><strong>2. 10% Condition</strong><br/>✅ Passed.<br/><small>Our sampling fraction ($n = {len(X_test)}$) is safely less than 10% of the total target population of credit applicants ($n \\le 0.10N$), allowing observations to be treated as independent.</small></div>", unsafe_allow_html=True)
 with cond_col3:
-    # Large counts dynamic evaluation
     all_cells_large = (expected_matrix >= 5).all()
     status_str = "✅ Passed." if all_cells_large else "❌ Violated."
     st.markdown(f"<div class='condition-box'><strong>3. Large Counts Condition</strong><br/>{status_str}<br/><small>All expected frequencies are greater than or equal to 5 ($E \\ge 5$), confirming that the sampling distribution is structurally stable.</small></div>", unsafe_allow_html=True)
@@ -158,11 +157,11 @@ with col_m2:
 with col_m3:
     st.metric(label="Measured Disparity (p̂₁ - p̂₂)", value=f"{p_hat_diff*100:+.1f}%", help="Point estimate mapping the direct practical effect size.")
 with col_m4:
-    st.metric(label="Model Predictive Accuracy", value=f"{accuracy*100:.1f}%")
+    st.metric(label="Model Accuracy", value=f"{accuracy*100:.1f}%")
 
 st.markdown("---")
 
-# Row 3: Advanced Unit 7 Contingency Matrix Suite (Observed vs Expected vs Residuals)
+# Row 3: Categorical Matrix Suite (Observed vs Expected vs Residuals)
 st.write("### 📐 Categorical Matrix Space (Chi-Square Decomposition)")
 tab1, tab2, tab3 = st.tabs(["Observed Counts (O)", "Expected Counts under Independence (E)", "Standardized Residuals Analysis"])
 
@@ -175,38 +174,37 @@ with tab2:
 
 with tab3:
     st.dataframe(residuals_df, use_container_width=True)
-    st.markdown(f"""
+    st.markdown(r"""
     <div style='background-color:#F8FAFC; padding:15px; border-radius:6px; border:1px solid #E2E8F0; font-size:14px;'>
-        <strong>🔬 Standardized Residual Analysis:</strong> $\\frac{{O - E}}{{\\sqrt{{E}}}}$ measures how far each cell's observed counts deviate from what would be expected under $H_0$. <br/>
+        <strong>🔬 Standardized Residual Analysis:</strong> $\frac{O - E}{\sqrt{E}}$ measures how far each cell's observed counts deviate from what would be expected under $H_0$. <br/>
         * A <strong>positive residual</strong> indicates that the model generated more outcomes in that cell than expected under the assumption of independence.<br/>
         * A <strong>negative residual</strong> indicates that fewer outcomes occurred than expected.<br/>
-        Current Matrix Profile: The Male Approval cell displays a residual of <strong>{residuals_df.loc['Male', 'Approved (1)']:+.3f}</strong>, indicating a structural drift toward higher-than-expected automated approvals.
     </div>
     """, unsafe_allow_html=True)
+    st.caption(f"Current Matrix Profile: The Male Approval cell displays a standardized residual of {residuals_df.loc['Male', 'Approved (1)']:+.3f}.")
 
 st.markdown("---")
 
-# Row 4: Advanced Unit 6 Estimation (Confidence Intervals)
+# Row 4: Parameter Estimation via Proportions
 st.write("### 🔒 Parameter Estimation via Proportions")
 st.markdown(f"#### **95% Confidence Interval for Difference in Proportions ($p_{{\\text{{male}}}} - p_{{\\text{{female}}}}$)**")
 st.markdown(f"## $$ [ {ci_lower:.4f}, \\ \\ {ci_upper:.4f} ] $$ ")
 
-st.markdown(f"""
+st.markdown(r"""
 <div class='interpretation-box'>
     <strong>Formal Interpretation Bound:</strong><br/>
-    We are 95% confident that the true difference in long-run credit approval proportions between male and female applicants ($p_{{\\text{{male}}}} - p_{{\\text{{female}}}}$) 
-    lies within the interval calculated above. Because zero {'<strong>is not contained</strong> within this interval, we have strong evidence of a systemic difference' if (ci_lower > 0 or ci_upper < 0) else '<strong>is contained</strong> within this interval, we do not have sufficient evidence of a systemic difference'}, confirming consistency with our significance testing structures.
+    We are 95% confident that the true difference in long-run credit approval proportions between male and female applicants ($p_{\text{male}} - p_{\text{female}}$) 
+    lies within the interval calculated above.
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown("---")
 
-# Row 5: Central Statistical Conclusion Box
+# Row 5: Final Inference Decision Profile
 st.write("### ⚖️ Final Inference Decision Profile")
 
 active_p = p_val_chi2
 if active_p < alpha:
-    # FIX 2: Removed absolute words like "proves bias" and used rigorous AP phrasing instead
     st.markdown(f"""
     <div class='verdict-reject' style='color:#000;'>
         <strong>DECISION: REJECT THE NULL HYPOTHESIS ($H_0$) AT α = {alpha}</strong><br/><br/>
@@ -226,28 +224,28 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-# Row 6: FIX 3 & 4: Advanced AP Discussion Blocks (Type I/II Definitions and Power Relationships)
+# Row 6: Methodology & Experimental Design Discussion
 st.markdown("---")
 st.write("### 📝 Methodology & Experimental Design Discussion")
 disc_col1, disc_col2 = st.columns(2)
 
 with disc_col1:
     st.markdown("**1. Formal Error Framework Definitions**")
-    st.caption(f"""
+    st.markdown(r"""
     * <strong>Type I Error:</strong> Rejecting the null hypothesis ($H_0$) when it is actually true. In this context, it means concluding that the model's approval outcomes depend on demographic status when, in reality, the process is completely independent and fair.
     <br/><br/>
     * <strong>Type II Error:</strong> Failing to reject the null hypothesis ($H_0$) when the alternative hypothesis ($H_a$) is true. In this context, it means concluding that the model's approval outcomes are independent of demographic status when, in reality, a systemic outcome dependency is present.
-    """)
+    """, unsafe_allow_html=True)
 
 with disc_col2:
     st.markdown("**2. Statistical Power & Variable Dynamics**")
-    st.caption(f"""
-    The probability that our test will correctly reject the null hypothesis when a true demographic disparity exists is defined as <strong>Statistical Power ($1 - \\beta$)</strong>.
+    st.markdown(r"""
+    The probability that our test will correctly reject the null hypothesis when a true demographic disparity exists is defined as <strong>Statistical Power ($1 - \beta$)</strong>.
     <br/><br/>
     <strong>Core Power Principles:</strong><br/>
     * <strong>Sample Size Relationship:</strong> Increasing our sample size ($n$) reduces standard error, which directly <strong>increases statistical power</strong> and lowers Type II error risk.<br/>
     * <strong>Alpha Threshold Relationship:</strong> Setting a higher significance level ($\alpha$) expands our rejection region, which <strong>increases statistical power</strong> but also increases our vulnerability to Type I errors.
-    """)
+    """, unsafe_allow_html=True)
 
 st.markdown("---")
 
