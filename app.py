@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import LabelEncoder
 from dataset_loader import load_clean_data
 from audit_framework import calculate_audit_score, get_demographic_parity, run_chi_square
 
@@ -23,16 +22,20 @@ sensitive_attr = raw_sensitive_attr.apply(lambda x: 'Male' if str(x).strip() in 
 
 @st.cache_data
 def train_production_random_forest():
+    # Isolate features by dropping the target column
     X = df.drop(columns=[df.columns[-1]]) 
-    for col in X.columns:
-        if X[col].dtype == 'object':
-            X[col] = LabelEncoder().fit_transform(X[col].astype(str))
-    y = LabelEncoder().fit_transform(target.astype(str))
     
-    # Train a real Random Forest pipeline
+    # CONVERT TEXT TO NUMBERS: One-hot encode all text/categorical columns safely
+    X_numeric = pd.get_dummies(X, drop_first=True)
+    
+    # Convert target mapping to binary matrix integers (1 for Good, 0 for Bad)
+    # The German Credit Dataset encodes good/bad credit as strings or integers
+    y_numeric = target.apply(lambda x: 1 if str(x).strip() in ['1', 'good'] else 0)
+    
+    # Train a real Random Forest pipeline on purely numeric data
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
-    clf.fit(X, y)
-    return clf.predict(X)
+    clf.fit(X_numeric, y_numeric)
+    return clf.predict(X_numeric)
 
 # Execute model configuration
 if model_choice == "Random Forest Credit Classifier":
@@ -49,8 +52,9 @@ rates, ratio = get_demographic_parity(predictions, sensitive_attr)
 p_val = run_chi_square(predictions, sensitive_attr)
 score = calculate_audit_score(predictions, sensitive_attr)
 
-# Calculate False Rejection Rate (FRR) Disparity assuming Target == 1 is 'Good Credit'
-df_metrics = pd.DataFrame({'Actual': target, 'Predicted': predictions, 'Group': sensitive_attr})
+# Calculate False Rejection Rate (FRR) Disparity assuming target value mappings
+binary_target = target.apply(lambda x: 1 if str(x).strip() in ['1', 'good'] else 0)
+df_metrics = pd.DataFrame({'Actual': binary_target, 'Predicted': predictions, 'Group': sensitive_attr})
 frr_rates = {}
 for group in ['Male', 'Female']:
     group_filter = df_metrics[df_metrics['Group'] == group]
@@ -60,7 +64,7 @@ for group in ['Male', 'Female']:
 
 frr_disparity = abs(frr_rates['Male'] - frr_rates['Female']) * 100
 
-# --- THE AUDIT PANEL DISPLAY (The Reviewer's Layout) ---
+# --- THE AUDIT PANEL DISPLAY ---
 st.write("### 📋 Audit Target Metadata")
 col1, col2 = st.columns(2)
 with col1:
@@ -89,6 +93,6 @@ if ratio < 0.80 or p_val < 0.05:
 else:
     st.success(f"✅ COMPLIANCE PASS: No statistically significant systemic disparity detected (p = {p_val:.4f}). Vector variances fall within acceptable null-hypothesis boundaries.")
 
-# Demote the arbitrary score to a minor visual footnote at the bottom
+# Footnote score configuration
 with st.expander("View System Score Footnote"):
     st.write(f"Custom Framework Alignment Rating (AAS): **{score:.1f}/100**")
